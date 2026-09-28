@@ -139,7 +139,7 @@ static DWORD WINAPI click_thread(void *unused) {
 
 static void status(LPCWSTR message) {
     LONG button = config() & BUTTON_MASK;
-    SetWindowTextW(g_control[STATUS], button == LEFT ? L"Left clicking" : button == RIGHT ? L"Right clicking" : L"Paused");
+    SetWindowTextW(g_control[STATUS], button == LEFT ? L"Left on" : button == RIGHT ? L"Right on" : L"Paused");
     if (message) SetWindowTextW(g_control[FOOTER], message);
 }
 
@@ -201,13 +201,13 @@ static void apply_keys(void) {
     change_config(BUTTON_MASK, 0);
     if ((LOBYTE(left) == LOBYTE(right) && modifiers(left) == modifiers(right)) ||
         LOBYTE(left) == VK_F9 || LOBYTE(right) == VK_F9) {
-        status(L"Use two different shortcuts. F9 is reserved for closing.");
+        status(L"Use different hotkeys. F9 is reserved.");
     } else if (bind_keys(left, right)) {
         g_keys[0] = left; g_keys[1] = right;
-        status(L"Shortcuts applied. F9 always closes the app.");
+        status(L"Hotkeys applied.");
     } else {
         BOOL restored = bind_keys(g_keys[0], g_keys[1]);
-        status(restored ? L"Shortcut in use. Previous shortcuts are still active." : L"Shortcuts unavailable. Choose another pair and apply.");
+        status(restored ? L"Hotkey in use. Kept previous keys." : L"Hotkeys in use. Choose others.");
     }
 }
 
@@ -224,8 +224,8 @@ static LRESULT CALLBACK field_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UI
                 change_config(BUTTON_MASK, 0);
                 UnregisterHotKey(g_window, HK_LEFT);
                 UnregisterHotKey(g_window, HK_RIGHT);
-                status(L"Press a shortcut, then Apply hotkeys. F9 closes the app.");
-            } else if (!bind_keys(g_keys[0], g_keys[1])) status(L"Shortcuts unavailable. Choose another pair and apply.");
+                status(L"Press keys, then Apply.");
+            } else if (!bind_keys(g_keys[0], g_keys[1])) status(L"Hotkeys in use. Choose others.");
         }
     }
     if (msg == WM_GETDLGCODE && lp && ((MSG *)lp)->wParam != VK_TAB)
@@ -460,7 +460,7 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         else if (!g_capturing && (wp == HK_LEFT || wp == HK_RIGHT)) {
             LONG button = wp == HK_LEFT ? LEFT : RIGHT;
             change_config(BUTTON_MASK, (config() & BUTTON_MASK) == button ? 0 : button);
-            status(L"F9 always closes the app.");
+            status(L"F9: quit");
         }
         return 0;
     case WM_HSCROLL:
@@ -502,10 +502,10 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         layout(); return 0;
     case WM_SETTINGCHANGE: appearance(); layout(); return 0;
     case ENGINE_ERROR:
-        status(L"Input failed. Clicking stopped; check the target app's permissions.");
+        status(L"Input failed. Check permissions.");
         if (wp) {
             change_config(BUTTON_MASK, 0);
-            MessageBoxW(hwnd, L"The Windows click timer failed. Please restart CoreAutoclicker.", L"CoreAutoclicker", MB_OK | MB_ICONERROR);
+            MessageBoxW(hwnd, L"Timer failed. Restart the app.", L"CoreAutoclicker", MB_OK | MB_ICONERROR);
             DestroyWindow(hwnd);
         }
         return 0;
@@ -529,15 +529,15 @@ static int app_main(void) {
     RECT r;
     int i, result = 1;
     static const struct { LPCWSTR type, text; DWORD style; } controls[] = {
-        { L"STATIC", L"Left shortcut", 0 }, { L"EDIT", L"F6", WS_TABSTOP | ES_READONLY | ES_CENTER },
-        { L"STATIC", L"Right shortcut", 0 }, { L"EDIT", L"F7", WS_TABSTOP | ES_READONLY | ES_CENTER },
+        { L"STATIC", L"Left hotkey", 0 }, { L"EDIT", L"F6", WS_TABSTOP | ES_READONLY | ES_CENTER },
+        { L"STATIC", L"Right hotkey", 0 }, { L"EDIT", L"F7", WS_TABSTOP | ES_READONLY | ES_CENTER },
         { L"STATIC", L"Clicks/sec", 0 }, { L"EDIT", L"1000", WS_TABSTOP | ES_NUMBER | ES_CENTER | ES_AUTOHSCROLL },
         { TRACKBAR_CLASSW, L"Click rate", WS_TABSTOP | TBS_NOTICKS },
-        { L"BUTTON", L"Use SendInput", WS_TABSTOP | BS_AUTOCHECKBOX },
+        { L"BUTTON", L"SendInput", WS_TABSTOP | BS_AUTOCHECKBOX },
         { L"BUTTON", L"Cursor jitter", WS_TABSTOP | BS_AUTOCHECKBOX },
-        { L"BUTTON", L"Apply hotkeys", WS_TABSTOP | BS_PUSHBUTTON },
+        { L"BUTTON", L"Apply", WS_TABSTOP | BS_PUSHBUTTON },
         { L"STATIC", L"Paused", SS_RIGHT },
-        { L"STATIC", L"F9 closes the app.", 0 }
+        { L"STATIC", L"F9: quit", 0 }
     };
     window_dpi = (UINT (WINAPI *)(HWND))GetProcAddress(user, "GetDpiForWindow");
     adjust_dpi = (BOOL (WINAPI *)(LPRECT, DWORD, BOOL, DWORD, UINT))GetProcAddress(user, "AdjustWindowRectExForDpi");
@@ -574,10 +574,10 @@ static int app_main(void) {
     SetWindowPos(g_window, 0, 0, 0, r.right - r.left, r.bottom - r.top, SWP_NOMOVE | SWP_NOZORDER);
     layout();
     if (!RegisterHotKey(g_window, HK_EXIT, MOD_NOREPEAT, VK_F9)) {
-        MessageBoxW(g_window, L"F9 is already in use. Close the other autoclicker or choose another shortcut in the other app, then restart.", L"CoreAutoclicker", MB_OK | MB_ICONERROR);
+        MessageBoxW(g_window, L"F9 is in use. Close the other app, then retry.", L"CoreAutoclicker", MB_OK | MB_ICONERROR);
         goto cleanup;
     }
-    if (!bind_keys(g_keys[0], g_keys[1])) status(L"Shortcuts unavailable. Choose another pair and apply.");
+    if (!bind_keys(g_keys[0], g_keys[1])) status(L"Hotkeys in use. Choose others.");
     thread = CreateThread(0, 0, click_thread, 0, 0, 0);
     if (!thread) goto cleanup;
     ShowWindow(g_window, SW_SHOWNORMAL);

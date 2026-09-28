@@ -18,7 +18,6 @@ $vcarch = @{ x64 = 'x64'; x86 = 'x64_x86'; arm64 = 'x64_arm64' }[$Architecture]
 $out = Join-Path $PSScriptRoot "build\$Architecture"
 $compilerSupport = if ($Architecture -eq 'x86') { 'libcmt.lib' } else { '' }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
-# Only compile/link commands use cmd; all file operations remain in PowerShell.
 & cmd /d /s /c "`"$vcvars`" $vcarch >nul && rc /nologo /fo `"$out\coreautoclicker.res`" coreautoclicker.rc"
 if ($LASTEXITCODE) { throw 'Resource compilation failed. Check the Windows SDK and target C++ tools.' }
 & cmd /d /s /c "`"$vcvars`" $vcarch >nul && `"$clang`" --target=$target-pc-windows-msvc /nologo /TC /W4 /WX /Os /clang:-Oz /Oi /GS- /Gy /Gw /Zl /D_WIN32_WINNT=0x0601 /DNDEBUG /Fo`"$out\clicker.obj`" clicker.c /link /subsystem:windows /entry:win_main_crt_startup /nodefaultlib kernel32.lib user32.lib gdi32.lib comctl32.lib dwmapi.lib msimg32.lib $compilerSupport `"$out\coreautoclicker.res`" /opt:ref /opt:icf /incremental:no /Brepro /out:`"$out\CoreAutoclicker.exe`""
@@ -26,7 +25,7 @@ if ($LASTEXITCODE) { throw 'Compilation failed.' }
 if (!$NoPackage) {
     $release = Join-Path $PSScriptRoot "dist\CoreAutoclicker-win-$Architecture"
     New-Item -ItemType Directory -Force -Path $release | Out-Null
-    Copy-Item -LiteralPath "$out\CoreAutoclicker.exe",'README.md','RELEASE_NOTES.md','LICENSE','NOTICE','VERIFICATION.md' -Destination $release
+    Copy-Item -LiteralPath "$out\CoreAutoclicker.exe",'README.md','RELEASE_NOTES.md','LICENSE','NOTICE' -Destination $release
     New-Item -ItemType Directory -Force -Path "$release\assets" | Out-Null
     Copy-Item -LiteralPath 'assets\OFL-Lexend.txt','assets\README.md' -Destination "$release\assets"
     Compress-Archive -Path "$release\*" -DestinationPath "$release.zip" -Force
